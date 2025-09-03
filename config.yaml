@@ -1,0 +1,26 @@
+# AIPlayground Configuration
+
+retriever:
+  # chunk size for splitting docs
+  chunk_size: 200
+  # retrieval method: keyword, semantic, or hybrid
+  method: "keyword"
+
+embedding:
+  # model used for embeddings
+  model_name: "sentence-transformers/paraphrase-MiniLM-L3-v2"
+  # device: "cpu" or "cuda"
+  device: "cpu"
+
+data:
+  # folder containing raw docs
+  docs_path: "data/docs"
+
+api:
+  # future FastAPI server settings
+  host: "127.0.0.1"
+  port: 8000
+
+logging:
+  # logging level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
