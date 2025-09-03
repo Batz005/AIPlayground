@@ -1,1 +1,3 @@
 pytest
+nltk>=3.8
+# Add punkt data for nltk sentence tokenizer

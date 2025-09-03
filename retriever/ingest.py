@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import List
 import yaml
 from pathlib import Path
+import re
+import nltk
+import json
 
 # Load config
 with open(Path(__file__).parent.parent / "config.yaml", "r") as f:
@@ -33,14 +36,12 @@ def chunk_text(text: str, chunk_size: int = config["retriever"]["chunk_size"]) -
         chunks.append(" ".join(words))
     return chunks
 
-import re
-from typing import List
 
 def chunk_text_advanced(text: str, chunk_size: int = 150, min_size: int = 50) -> List[str]:
     """
     Split text into chunks using headings -> sentences.
     - First split on markdown headings.
-    - Then split sections into sentences.
+    - Then split sections into sentences (using nltk).
     - Group sentences until chunk_size words.
     - Merge small remainders (< min_size) into previous chunk.
     """
@@ -58,8 +59,13 @@ def chunk_text_advanced(text: str, chunk_size: int = 150, min_size: int = 50) ->
         merged_sections.insert(0, sections[0].strip())
     
     for section in merged_sections if merged_sections else [text]:
-        # Split into sentences (naive split on .!?)
-        sentences = re.split(r'(?<=[.!?])\s+', section)
+        # Split into sentences with nltk
+        try:
+            sentences = nltk.sent_tokenize(section)
+        except LookupError:
+            nltk.download("punkt_tab", quiet=True)
+            sentences = nltk.sent_tokenize(section)
+        
         current_chunk = []
         current_len = 0
 
@@ -84,11 +90,27 @@ def chunk_text_advanced(text: str, chunk_size: int = 150, min_size: int = 50) ->
 def ingest(folder: str, chunk_size: int = config["retriever"]["chunk_size"]) -> List[str]:
     """
     Full ingest pipeline: load all docs → chunk → return chunks.
+    Uses cache if available.
     """
+    cache_file = Path("./cache/chunks.json")
+    cache_file.parent.mkdir(parents=True, exist_ok=True) 
+
+    # 1. Try cache
+    if cache_file.exists():
+        with open(cache_file, "r", encoding="utf-8") as f:
+            chunks = json.load(f)
+        return chunks
+
+    # 2. No cache → compute fresh
     docs = load_docs(folder)
     all_chunks = []
     for doc in docs:
         all_chunks.extend(chunk_text_advanced(doc, chunk_size))
+    
+    # 3. Save to cache
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump(all_chunks, f, ensure_ascii=False, indent=2)
+    
     return all_chunks
 
 def print_ingest_summary(chunks: List[str]) -> None:
