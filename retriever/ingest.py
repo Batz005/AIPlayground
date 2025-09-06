@@ -14,7 +14,7 @@ import json
 with open(Path(__file__).parent.parent / "config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-def load_docs(folder: str) -> List[str]:
+def _load_docs(folder: str) -> List[str]:
     """
     Read all .md/.txt files in folder and return list of raw texts.
     """
@@ -25,7 +25,7 @@ def load_docs(folder: str) -> List[str]:
         texts.append(file.read_text(encoding="utf-8"))
     return texts
 
-def chunk_text(text: str, chunk_size: int = config["retriever"]["chunk_size"]) -> List[str]:
+def _chunk_text(text: str, chunk_size: int = config["retriever"]["chunk_size"]) -> List[str]:
     """
     Split text into chunks of ~chunk_size words.
     """
@@ -37,7 +37,7 @@ def chunk_text(text: str, chunk_size: int = config["retriever"]["chunk_size"]) -
     return chunks
 
 
-def chunk_text_advanced(text: str, chunk_size: int = 150, min_size: int = 50) -> List[str]:
+def _chunk_text_advanced(text: str, chunk_size: int = 150, min_size: int = 50) -> List[str]:
     """
     Split text into chunks using headings -> sentences.
     - First split on markdown headings.
@@ -92,7 +92,7 @@ def ingest(folder: str, chunk_size: int = config["retriever"]["chunk_size"]) -> 
     Full ingest pipeline: load all docs → chunk → return chunks.
     Uses cache if available.
     """
-    cache_file = Path("./cache/chunks.json")
+    cache_file = Path(config["data"]["chunks_cache_path"])
     cache_file.parent.mkdir(parents=True, exist_ok=True) 
 
     # 1. Try cache
@@ -102,10 +102,10 @@ def ingest(folder: str, chunk_size: int = config["retriever"]["chunk_size"]) -> 
         return chunks
 
     # 2. No cache → compute fresh
-    docs = load_docs(folder)
+    docs = _load_docs(folder)
     all_chunks = []
     for doc in docs:
-        all_chunks.extend(chunk_text_advanced(doc, chunk_size))
+        all_chunks.extend(_chunk_text_advanced(doc, chunk_size))
     
     # 3. Save to cache
     with open(cache_file, "w", encoding="utf-8") as f:

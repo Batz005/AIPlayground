@@ -1,10 +1,30 @@
 """
-Retrieval methods: keyword-based and semantic
+Retrieval methods: keyword-based and semantic, with optional embedding cache
 """
 
 from typing import List, Tuple
 import numpy as np
-from retriever.vectorizer import vectorize_string, vectorize_all
+import pickle
+import yaml
+from pathlib import Path
+from utils.vectorizer import vectorize_string, vectorize_all
+
+# Load config
+with open(Path(__file__).parent.parent / "config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+# Embedding cache file
+EMBED_CACHE_FILE = Path(config["data"]["embeddings_cache_path"])
+if EMBED_CACHE_FILE.exists():
+    with open(EMBED_CACHE_FILE, "rb") as f:
+        _embedding_cache = pickle.load(f)
+else:
+    _embedding_cache = {}
+
+def _save_embedding_cache():
+    EMBED_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(EMBED_CACHE_FILE, "wb") as f:
+        pickle.dump(_embedding_cache, f)
 
 
 # -----------------------------
@@ -23,7 +43,7 @@ def _keyword_score(query: str, chunk: str) -> int:
     return count
 
 
-def _retrieve_keyword(query: str, chunks: List[str], top_k: int = 3) -> List[Tuple[str, int]]:
+def _retrieve_keyword(query: str, chunks: List[str], top_k: int) -> List[Tuple[str, int]]:
     """
     Return top_k chunks with highest keyword score.
     """
@@ -38,21 +58,35 @@ def _retrieve_keyword(query: str, chunks: List[str], top_k: int = 3) -> List[Tup
 
 
 # -----------------------------
-# Semantic retrieval
+# Semantic retrieval (with caching)
 # -----------------------------
 def cosine_similarity(vec_a, vec_b) -> float:
     """Compute cosine similarity between two vectors."""
     return float(np.dot(vec_a, vec_b) / (np.linalg.norm(vec_a) * np.linalg.norm(vec_b)))
 
 
+def _get_embedding(text: str, model_name: str = None):
+    """Get embedding for text from cache or compute if missing."""
+    key = (text, model_name)
+    if key in _embedding_cache:
+        return _embedding_cache[key]
+    emb = vectorize_string(text, model_name=model_name)
+    _embedding_cache[key] = emb
+    _save_embedding_cache()
+    return emb
+
+
 def _retrieve_semantic(query: str, chunks: List[str], top_k: int = 3, model_name: str = None) -> List[Tuple[str, float]]:
     """
     Return top_k chunks ranked by semantic similarity (embeddings + cosine similarity).
+    Uses embedding cache for efficiency.
     """
-    query_vec = vectorize_string(query, model_name=model_name)
-    chunk_vecs = vectorize_all(chunks, model_name=model_name)
+    query_vec = _get_embedding(query, model_name=model_name)
+    scored = []
+    for chunk in chunks:
+        vec = _get_embedding(chunk, model_name=model_name)
+        scored.append((chunk, cosine_similarity(query_vec, vec)))
 
-    scored = [(chunk, cosine_similarity(query_vec, vec)) for chunk, vec in zip(chunks, chunk_vecs)]
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored[:top_k]
 
@@ -63,7 +97,7 @@ def _retrieve_semantic(query: str, chunks: List[str], top_k: int = 3, model_name
 def retrieve(
     query: str,
     chunks: List[str],
-    top_k: int = 3,
+    top_k: int,
     method: str = "semantic",
     model_name: str = None,
 ):

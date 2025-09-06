@@ -1,33 +1,56 @@
 """
-CLI entrypoint for querying docs
+CLI entrypoint for querying docs using pipelines
 """
 
-import sys
+import argparse
 import yaml
+import json
+import time
 from pathlib import Path
-from retriever import ingest, retrieve, print_ingest_summary
+from modules.pipelines.factory import PipelineFactory
 
 # Load config
 with open(Path(__file__).parent.parent / "config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python query.py 'your question'")
-        return
-    
-    query = sys.argv[1]
-    chunk_size = config["retriever"]["chunk_size"]
-    if len(sys.argv) >= 3:
-        chunk_size = int(sys.argv[2])
-    chunks = ingest("data/docs", chunk_size)
-    print_ingest_summary(chunks)  # Show debug summary of chunks
-    results = retrieve(query, chunks, top_k=3)
+    parser = argparse.ArgumentParser(description="Query the AIPlayground knowledge base")
+    parser.add_argument("query", type=str, help="Your query/question")
+    parser.add_argument("--pipeline", type=str, default="qa", help="Pipeline to run (default: qa)")
+    parser.add_argument("--rebuild-cache", action="store_true", help="Force rebuild chunk and embedding cache")
+    parser.add_argument("--json", action="store_true", help="Return results as JSON")
+    parser.add_argument("--timing", action="store_true", help="Print timing for each step and total time")
+    args = parser.parse_args()
 
-    print("Query:", query)
+    total_start = time.time()
+
+    # Handle cache rebuild
+    if args.rebuild_cache:
+        Path(config["data"]["chunks_cache_path"]).unlink(missing_ok=True)
+        Path(config["data"]["embeddings_cache_path"]).unlink(missing_ok=True)
+        print("Cache cleared: chunks + embeddings")
+
+    # Build pipeline
+    pipeline = PipelineFactory.create(config, args.pipeline)
+
+    # Run pipeline
+    t0 = time.time()
+    results = pipeline.run(args.query, folder=config["data"]["docs_path"])
+    t1 = time.time()
+
+    # Output results
+    print("Query:", args.query)
     print("Results:")
-    for text, score in results:
-        print(f"[score={score}] {text[:200]}...")
+    if args.json:
+        print(json.dumps([{"score": score, "text": text} for text, score in results], indent=2, ensure_ascii=False))
+    else:
+        for text, score in results:
+            snippet = " ".join(text.split()[:40])  # ~40 words instead of 200 chars
+            print(f"[score={score:.4f}] {snippet}...")
+
+    if args.timing:
+        print(f"Pipeline time: {t1 - t0:.2f}s")
+        print(f"Total time: {time.time() - total_start:.2f}s")
 
 if __name__ == "__main__":
     main()

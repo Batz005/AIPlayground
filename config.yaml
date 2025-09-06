@@ -1,26 +1,44 @@
 # AIPlayground Configuration
 
-retriever:
-  # chunk size for splitting docs
-  chunk_size: 200
-  # retrieval method: keyword, semantic, or hybrid
-  method: "keyword"
+modules:
+  ingestor:
+    simple:
+      chunk_size: 100
+    advanced:
+      chunk_size: 150
+      min_size: 50
+
+  retriever:
+    keyword:
+      top_k: 5
+    semantic:
+      top_k: 3
+      model_name: "sentence-transformers/paraphrase-MiniLM-L3-v2"
+
+  generator:
+    flan_t5:
+      max_tokens: 200
+      temperature: 0.7
+    # future: gpt, llama, etc.
+
+pipelines:
+  qa:
+    sequence: ["ingestor:advanced", "retriever:semantic"]
+  rag:
+    sequence: ["ingestor:advanced", "retriever:semantic", "generator:flan_t5"]
 
 embedding:
-  # model used for embeddings
   model_name: "sentence-transformers/paraphrase-MiniLM-L3-v2"
-  # device: "cpu" or "cuda"
   device: "cpu"
 
 data:
-  # folder containing raw docs
   docs_path: "data/docs"
+  chunks_cache_path: "cache/chunks.json"
+  embeddings_cache_path: "cache/embeddings.pkl"
 
 api:
-  # future FastAPI server settings
   host: "127.0.0.1"
   port: 8000
 
 logging:
-  # logging level: DEBUG, INFO, WARNING, ERROR
   level: "INFO"

@@ -3,7 +3,7 @@ Tests for vectorizer.py
 """
 
 import pytest
-from retriever import vectorizer
+from utils import vectorizer
 
 def test_vectorize_string():
     text = "This is a test sentence."
