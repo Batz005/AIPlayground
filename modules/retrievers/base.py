@@ -17,6 +17,7 @@ class BaseRetriever(BaseModule, ABC):
         """
         super().__init__(name)
         self.top_k = top_k
+        self.last_results = None
 
     @abstractmethod
     def retrieve(self, query: str, chunks: list, *args, **kwargs):
@@ -39,4 +40,6 @@ class BaseRetriever(BaseModule, ABC):
         Implements the BaseModule contract. 
         Calls `retrieve` internally so retrievers can also be used as generic modules.
         """
-        return self.retrieve(query, chunks, *args, **kwargs)
+        results = self.retrieve(query, chunks, *args, **kwargs)
+        self.last_results = results
+        return results

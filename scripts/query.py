@@ -16,10 +16,11 @@ with open(Path(__file__).parent.parent / "config.yaml", "r") as f:
 def main():
     parser = argparse.ArgumentParser(description="Query the AIPlayground knowledge base")
     parser.add_argument("query", type=str, help="Your query/question")
-    parser.add_argument("--pipeline", type=str, default="qa", help="Pipeline to run (default: qa)")
+    parser.add_argument("--pipeline", type=str, default="rag", help="Pipeline to run (default: qa)")
     parser.add_argument("--rebuild-cache", action="store_true", help="Force rebuild chunk and embedding cache")
     parser.add_argument("--json", action="store_true", help="Return results as JSON")
     parser.add_argument("--timing", action="store_true", help="Print timing for each step and total time")
+    parser.add_argument("--summary", action="store_true", help="Print ingestor summary")
     args = parser.parse_args()
 
     total_start = time.time()
@@ -33,20 +34,37 @@ def main():
     # Build pipeline
     pipeline = PipelineFactory.create(config, args.pipeline)
 
+    # ... top stays the same
+
     # Run pipeline
     t0 = time.time()
     results = pipeline.run(args.query, folder=config["data"]["docs_path"])
     t1 = time.time()
 
-    # Output results
     print("Query:", args.query)
     print("Results:")
-    if args.json:
-        print(json.dumps([{"score": score, "text": text} for text, score in results], indent=2, ensure_ascii=False))
+
+    # If a generator ran, results will be a string answer
+    if isinstance(results, str):
+        print("Ans:", results)
+
+        # Optionally show the top contexts that fed the answer
+        if hasattr(pipeline, "last_retrieval") and pipeline.last_retrieval:
+            print("\nTop contexts:")
+            for text, score in pipeline.last_retrieval[:3]:
+                snippet = " ".join(text.split()[:40])
+                print(f"[{score:.3f}] {snippet}...")
     else:
-        for text, score in results:
-            snippet = " ".join(text.split()[:40])  # ~40 words instead of 200 chars
-            print(f"[score={score:.4f}] {snippet}...")
+        # Retrieval-only pipeline
+        # for text, score in results:
+        #     snippet = " ".join(text.split()[:40])
+        #     print(f"[score={score:.4f}] {snippet}...")
+        print(f"{results}")
+
+    # Ingest summary on exactly the chunks used
+    if args.summary and getattr(pipeline, "last_chunks", None):
+        from modules.ingestors.base import BaseIngestor
+        BaseIngestor.print_ingest_summary(pipeline.last_chunks)
 
     if args.timing:
         print(f"Pipeline time: {t1 - t0:.2f}s")

@@ -16,16 +16,25 @@ modules:
       model_name: "sentence-transformers/paraphrase-MiniLM-L3-v2"
 
   generator:
-    flan_t5:
-      max_tokens: 200
-      temperature: 0.7
+    flan_t5_small:
+      type: flan_t5_small
+      max_new_tokens: 64
+      temperature: 0.0
+    flan_t5_base:
+      type: flan_t5_base
+      max_new_tokens: 64
+      temperature: 0.0
+    flan_alpaca_base:
+      type: flan_alpaca_base
+      max_new_tokens: 256
+      temperature: 0.0
     # future: gpt, llama, etc.
 
 pipelines:
   qa:
     sequence: ["ingestor:advanced", "retriever:semantic"]
   rag:
-    sequence: ["ingestor:advanced", "retriever:semantic", "generator:flan_t5"]
+    sequence: ["ingestor:advanced", "retriever:semantic", "generator:flan_alpaca_base"]
 
 embedding:
   model_name: "sentence-transformers/paraphrase-MiniLM-L3-v2"
